@@ -122,6 +122,7 @@ void GcodeSuite::M3_M4(const bool is_M4) {
   TERN_(LASER_POWER_INLINE, planner.laser_inline.status.alwaysOn = true);
   TERN_(LASER_POWER_INLINE, planner.laser_inline.status.isEnabled = false); // prevent planner from turning OFF the laser
   cutter.menuPower = cutter.unitPower;
+
 }
 
 /**

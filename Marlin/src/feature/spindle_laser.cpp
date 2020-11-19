@@ -80,6 +80,9 @@ void SpindleLaser::init() {
   void SpindleLaser::ocr_off() {
     WRITE(SPINDLE_LASER_ENA_PIN, !SPINDLE_LASER_ACTIVE_STATE);        // Turn spindle off
     analogWrite(pin_t(SPINDLE_LASER_PWM_PIN), SPINDLE_LASER_PWM_OFF); // Only write low byte
+    #if NEEDS_HARDWARE_PWM && SPINDLE_LASER_FREQUENCY
+      set_pwm_duty(pin_t(SPINDLE_LASER_PWM_PIN), SPINDLE_LASER_PWM_OFF);
+    #endif
   }
 #endif
 

@@ -117,7 +117,10 @@ public:
 
   #if ENABLED(SPINDLE_LASER_PWM)
     static void set_ocr(const uint8_t ocr);
-    static inline void set_ocr_power(const uint8_t ocr) { power = ocr; set_ocr(ocr); }
+    static inline void set_ocr_power(const uint8_t ocr) {
+      power = ocr;
+      set_ocr(ocr);
+      }
     static void ocr_off();
     // Used to update output for power->OCR translation
     static inline uint8_t upower_to_ocr(const cutter_power_t upwr) {
@@ -225,6 +228,7 @@ public:
 
     // Force disengage planner power control
     static inline void inline_disable() {
+
       planner.laser_inline.status.isInline = false;
       planner.laser_inline.status.alwaysOn = false;
       planner.laser_inline.status.isEnabled = true;
