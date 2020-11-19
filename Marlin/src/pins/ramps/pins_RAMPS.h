@@ -95,10 +95,10 @@
 #endif
 #ifndef Y_STOP_PIN
   #ifndef Y_MIN_PIN
-    #define Y_MIN_PIN                         14
+    #define Y_MIN_PIN                         15 //14
   #endif
   #ifndef Y_MAX_PIN
-    #define Y_MAX_PIN                         15
+    #define Y_MAX_PIN                         14 //15
   #endif
 #endif
 #ifndef Z_STOP_PIN
@@ -204,7 +204,7 @@
   #define RAMPS_D8_PIN                         8
 #endif
 #ifndef RAMPS_D9_PIN
-  #define RAMPS_D9_PIN                         9
+  #define RAMPS_D9_PIN                         -1 //9
 #endif
 #ifndef RAMPS_D10_PIN
   #define RAMPS_D10_PIN                       10
@@ -275,7 +275,7 @@
 #if HAS_CUTTER && !defined(SPINDLE_LASER_ENA_PIN)
   #if !NUM_SERVOS                                 // Use servo connector if possible
     #define SPINDLE_LASER_ENA_PIN              4  // Pullup or pulldown!
-    #define SPINDLE_LASER_PWM_PIN              6  // Hardware PWM
+    #define SPINDLE_LASER_PWM_PIN              9  // Hardware PWM
     #define SPINDLE_DIR_PIN                    5
   #elif HAS_FREE_AUX2_PINS
     #define SPINDLE_LASER_ENA_PIN             40  // Pullup or pulldown!
