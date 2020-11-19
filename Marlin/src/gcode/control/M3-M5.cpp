@@ -103,8 +103,8 @@ void GcodeSuite::M3_M4(const bool is_M4) {
     }
   #endif
 
-  planner.synchronize();   // Wait for previous movement commands (G0/G0/G2/G3) to complete before changing power
-  cutter.set_reverse(is_M4);
+  planner.synchronize();   // Wait for previous movement commands (G0/G1/G2/G3) to complete before changing power
+  cutter.set_direction(is_M4);
 
   #if ENABLED(SPINDLE_LASER_PWM)
     if (parser.seenval('O')) {
@@ -122,7 +122,7 @@ void GcodeSuite::M3_M4(const bool is_M4) {
   #endif
   TERN_(LASER_POWER_INLINE, planner.laser_inline.status.alwaysOn = true);
   TERN_(LASER_POWER_INLINE, planner.laser_inline.status.isEnabled = false); // prevent planner from turning OFF the laser
-  cutter.menuPower = cutter.unitPower;
+  TERN_(HAS_LCD_MENU, cutter.menuPower = cutter.unitPower);
 }
 
 /**

@@ -210,6 +210,7 @@ void GcodeSuite::G28() {
   if (DEBUGGING(LEVELING)) log_machine_info();
 
   TERN_(LASER_MOVE_G28_OFF, cutter.laser_disable());  // turn off laser
+  TERN_(DWIN_CREALITY_LCD, HMI_flag.home_flag = true);
 
   #if ENABLED(DUAL_X_CARRIAGE)
     bool IDEX_saved_duplication_state = extruder_duplication_enabled;

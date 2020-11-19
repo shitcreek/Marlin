@@ -42,14 +42,11 @@ uint8_t SpindleLaser::power;
 bool SpindleLaser::isReady;                                           // Ready to apply power setting from the UI to OCR
 cutter_power_t SpindleLaser::menuPower,                               // Power set via LCD menu in PWM, PERCENT, or RPM
                SpindleLaser::unitPower;                               // LCD status power in PWM, PERCENT, or RPM
-TERN_(LASER_POWER_INLINE, static uint8_t last_power_applied = 0);     // Pre init - used locally only
+
+TERN_(LASER_POWER_INLINE, static uint8_t last_power_applied = 0);     // Used locally only
 TERN_(MARLIN_DEV_MODE, cutter_frequency_t SpindleLaser::frequency);   // PWM frequency setting; range: 2K - 50K
 
-#if ENABLED(MARLIN_DEV_MODE)
-  cutter_frequency_t SpindleLaser::frequency;                         // PWM frequency setting; range: 2K - 50K
-#endif
-#define SPINDLE_LASER_PWM_OFF TERN(SPINDLE_LASER_PWM_INVERT, 255, 0)
-
+#define SPINDLE_LASER_PWM_OFF ((SPINDLE_LASER_PWM_INVERT) ? 255 : 0)
 
 //
 // Init the cutter to a safe OFF state
@@ -92,8 +89,13 @@ void SpindleLaser::init() {
   }
 
   void SpindleLaser::ocr_off() {
-    WRITE(SPINDLE_LASER_ENA_PIN, !SPINDLE_LASER_ACTIVE_STATE); // Cutter OFF
-    _set_ocr(0);
+    // WRITE(SPINDLE_LASER_ENA_PIN, !SPINDLE_LASER_ACTIVE_STATE); // Cutter OFF
+    // _set_ocr(0);
+    WRITE(SPINDLE_LASER_ENA_PIN, !SPINDLE_LASER_ACTIVE_STATE);        // Turn spindle off
+    analogWrite(pin_t(SPINDLE_LASER_PWM_PIN), SPINDLE_LASER_PWM_OFF); // Only write low byte
+    #if NEEDS_HARDWARE_PWM && SPINDLE_LASER_FREQUENCY
+      set_pwm_duty(pin_t(SPINDLE_LASER_PWM_PIN), SPINDLE_LASER_PWM_OFF);
+    #endif
   }
 #endif
 

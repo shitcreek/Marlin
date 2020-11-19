@@ -94,14 +94,11 @@ public:
   static const cutter_power_t mpower_min() { return cpwr_to_upwr(SPEED_POWER_MIN); }
   static const cutter_power_t mpower_max() { return cpwr_to_upwr(SPEED_POWER_MAX); }
 
-  #if ENABLED(LASER_FEATURE)
-    static cutter_test_pulse_t testPulse; // Test fire Pulse ms value
-  #endif
-
-  static bool isReady;                    // Ready to apply power setting from the UI to OCR
+  static bool isReady;                                            // Ready to apply power setting from the UI to OCR
   static uint8_t power;
+  TERN_(LASER_FEATURE, static cutter_test_pulse_t testPulse);     // Test fire Pulse ms value
   TERN_(MARLIN_DEV_MODE, static cutter_frequency_t frequency);    // Set PWM frequency; range: 2K-50K
-  static cutter_power_t menuPower;                                // Power as set via LCD menu in PWM, Percentage or RPM
+  TERN_(HAS_LCD_MENU, static cutter_power_t menuPower);           // Power as set via LCD menu in PWM, Percentage or RPM
   static cutter_power_t unitPower;                                // Power as displayed status in PWM, Percentage or RPM
 
   static void init();
@@ -123,14 +120,18 @@ public:
     set_power(enable ? TERN(SPINDLE_LASER_PWM, (power ?: (unitPower ?: upower_to_ocr(cpwr_to_upwr(SPEED_POWER_STARTUP)))), 255) : 0);
   }
 
-    private:
+    // private:
 
-    static void _set_ocr(const uint8_t ocr);
+    // static void _set_ocr(const uint8_t ocr);
 
-    public:
+    // public:
 
+  #if ENABLED(SPINDLE_LASER_PWM)
     static void set_ocr(const uint8_t ocr);
-    static inline void set_ocr_power(const uint8_t ocr) { power = ocr; set_ocr(ocr); }
+    static inline void set_ocr_power(const uint8_t ocr) {
+      power = ocr;
+      set_ocr(ocr);
+      }
     static void ocr_off();
     // Used to update output for power->OCR translation
     static inline uint8_t upower_to_ocr(const cutter_power_t upwr) {
@@ -247,6 +248,9 @@ public:
 
  static inline void disable() { isReady = false; menuPower = 0; set_enabled(false); }
 
+//  static inline void disable() { isReady = false; power = 0; ocr_off();}
+ static inline void disable() { isReady = false; menuPower = 0; set_enabled(false); }
+
   #if ENABLED(LASER_POWER_INLINE)
     /**
      * Inline power adds extra fields to the planner block
@@ -255,6 +259,7 @@ public:
 
     // Force disengage planner power control
     static inline void inline_disable() {
+      // if (planner.laser_inline.status.isInline) set_ocr_power(0);
       planner.laser_inline.status.isInline = false;
       planner.laser_inline.status.alwaysOn = false;
       planner.laser_inline.status.isEnabled = true;
