@@ -129,14 +129,11 @@ void GcodeSuite::M3_M4(const bool is_M4) {
  * M5 - Cutter OFF (when moves are complete)
  */
 void GcodeSuite::M5() {
-
-
   #if ENABLED(LASER_POWER_INLINE)
     cutter.inline_disable();
   #endif
   cutter.disable();
   planner.synchronize();
-
 }
 
 #endif // HAS_CUTTER
