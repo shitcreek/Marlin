@@ -117,7 +117,7 @@ public:
   FORCE_INLINE static void set_power(const uint8_t upwr) { power = upwr; refresh(); }
 
   static inline void set_enabled(const bool enable) {
-    set_power(enable ? TERN(SPINDLE_LASER_PWM, (power ?: (unitPower ?: upower_to_ocr(cpwr_to_upwr(SPEED_POWER_STARTUP)))), 255) : 0);
+    set_power(enable ? TERN(SPINDLE_LASER_PWM, (power ?: upower_to_ocr(unitPower ?: cpwr_to_upwr(SPEED_POWER_STARTUP))), 255) : 0);
   }
 
     // private:
