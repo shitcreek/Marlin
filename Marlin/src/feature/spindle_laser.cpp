@@ -35,18 +35,14 @@
 #endif
 
 SpindleLaser cutter;
-uint8_t SpindleLaser::power;
-#if ENABLED(LASER_FEATURE)
-  cutter_test_pulse_t SpindleLaser::testPulse = 50;                   // Test fire Pulse time ms value.
-#endif
-bool SpindleLaser::isReady;                                           // Ready to apply power setting from the UI to OCR
-cutter_power_t SpindleLaser::menuPower,                               // Power set via LCD menu in PWM, PERCENT, or RPM
-               SpindleLaser::unitPower;                               // LCD status power in PWM, PERCENT, or RPM
-TERN_(MARLIN_DEV_MODE, cutter_frequency_t SpindleLaser::frequency);   // PWM frequency setting; range: 2K - 50K
 
-#if ENABLED(MARLIN_DEV_MODE)
-  cutter_frequency_t SpindleLaser::frequency;                         // PWM frequency setting; range: 2K - 50K
-#endif
+TERN_(LASER_FEATURE, cutter_test_pulse_t SpindleLaser::testPulse = 50); // Test fire Pulse time ms value.
+
+bool SpindleLaser::isReady;                                           // Ready to apply power setting from the UI to OCR
+uint8_t SpindleLaser::power;
+TERN_(MARLIN_DEV_MODE, cutter_frequency_t SpindleLaser::frequency);   // PWM frequency setting; range: 2K - 50K
+TERN_(HAS_LCD_MENU, cutter_power_t SpindleLaser::menuPower);          // Power as set via LCD menu in PWM, Percentage or RPM
+cutter_power_t SpindleLaser::unitPower;                               // LCD status power in PWM, PERCENT, or RPM
 
 #define SPINDLE_LASER_PWM_OFF TERN(SPINDLE_LASER_PWM_INVERT, 255, 0)
 
@@ -91,7 +87,7 @@ void SpindleLaser::init() {
   }
 
   void SpindleLaser::ocr_off() {
-    WRITE(SPINDLE_LASER_ENA_PIN, !SPINDLE_LASER_ACTIVE_STATE);        // Turn spindle off
+    WRITE(SPINDLE_LASER_ENA_PIN, !SPINDLE_LASER_ACTIVE_STATE); // Cutter OFF
     _set_ocr(0);
   }
 #endif
@@ -110,7 +106,7 @@ void SpindleLaser::apply_power(const uint8_t opwr) {
       ocr_off();
       isReady = false;
     }
-    else if (ENABLED(CUTTER_POWER_RELATIVE) || enabled()) {
+    else if (ENABLED(CUTTER_POWER_RELATIVE) || enabled(power)) {
       set_ocr(power);
       isReady = true;
     }

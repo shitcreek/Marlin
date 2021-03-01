@@ -110,11 +110,12 @@ void GcodeSuite::M3_M4(const bool is_M4) {
     if (parser.seenval('O')) {
       cutter.unitPower = cutter.power_to_range(parser.value_byte(), 0);
       cutter.set_ocr_power(cutter.unitPower); // The OCR is a value from 0 to 255 (uint8_t)
-      TERN_(planner.laser_inline.status.isInline, inline_ocr_power(cutter.unitPower))
+      TERN_(LASER_POWER_INLINE, if (planner.laser_inline.status.isInline) inline_ocr_power(cutter.unitPower));
     }
-    else
+    else {
       cutter.set_ocr_power(cutter.upower_to_ocr(get_s_power()));
-      TERN_(planner.laser_inline.status.isInline, inline_ocr_power(cutter.unitPower))
+      TERN_(LASER_POWER_INLINE, if (planner.laser_inline.status.isInline) inline_ocr_power(cutter.unitPower));
+    }
   #elif ENABLED(SPINDLE_SERVO)
     cutter.set_power(get_s_power());
   #else
@@ -122,8 +123,7 @@ void GcodeSuite::M3_M4(const bool is_M4) {
   #endif
   TERN_(LASER_POWER_INLINE, planner.laser_inline.status.alwaysOn = true);
   TERN_(LASER_POWER_INLINE, planner.laser_inline.status.isEnabled = false); // prevent planner from turning OFF the laser
-  cutter.menuPower = cutter.unitPower;
-
+  TERN_(HAS_LCD_MENU, cutter.menuPower = cutter.unitPower);
 }
 
 /**

@@ -94,15 +94,12 @@ public:
   static const cutter_power_t mpower_min() { return cpwr_to_upwr(SPEED_POWER_MIN); }
   static const cutter_power_t mpower_max() { return cpwr_to_upwr(SPEED_POWER_MAX); }
 
+  TERN_(LASER_FEATURE, cutter_test_pulse_t testPulse);            // Test fire Pulse ms value
+
   static bool isReady;                                            // Ready to apply power setting from the UI to OCR
-
-  #if ENABLED(LASER_FEATURE)
-    static cutter_test_pulse_t testPulse; // Test fire Pulse ms value
-  #endif
-
   static uint8_t power;
   TERN_(MARLIN_DEV_MODE, static cutter_frequency_t frequency);    // Set PWM frequency; range: 2K-50K
-  static cutter_power_t menuPower;                                // Power as set via LCD menu in PWM, Percentage or RPM
+  TERN_(HAS_LCD_MENU, static cutter_power_t menuPower);           // Power as set via LCD menu in PWM, Percentage or RPM
   static cutter_power_t unitPower;                                // Power as displayed status in PWM, Percentage or RPM
 
   static void init();
@@ -120,24 +117,18 @@ public:
   FORCE_INLINE static void refresh() { apply_power(power); }
   FORCE_INLINE static void set_power(const uint8_t upwr) { power = upwr; refresh(); }
 
-  static inline void set_enabled(const bool enable) {
-    set_power(enable ? TERN(SPINDLE_LASER_PWM, (power ?: upower_to_ocr(unitPower ?: cpwr_to_upwr(SPEED_POWER_STARTUP))), 255) : 0);
-  }
-
-private:
-
-  static void _set_ocr(const uint8_t ocr);
-
-public:
-
   #if ENABLED(SPINDLE_LASER_PWM)
 
+    private:
+
+    static void _set_ocr(const uint8_t ocr);
+
+    public:
+
     static void set_ocr(const uint8_t ocr);
-    static inline void set_ocr_power(const uint8_t ocr) {
-      power = ocr;
-      set_ocr(ocr);
-      }
+    static inline void set_ocr_power(const uint8_t ocr) { power = ocr; set_ocr(ocr); }
     static void ocr_off();
+
     // Used to update output for power->OCR translation
     static inline uint8_t upower_to_ocr(const cutter_power_t upwr) {
       return (
@@ -197,6 +188,16 @@ public:
 
   #endif // SPINDLE_LASER_PWM
 
+  static inline void set_enabled(const bool enable) {
+    set_power(enable ? (
+      #if ENABLED(SPINDLE_LASER_PWM)
+        power ?: (unitPower ? upower_to_ocr(cpwr_to_upwr(SPEED_POWER_STARTUP)) : 0)
+      #else
+        255
+      #endif
+    ) : 0);
+  }
+
   // Wait for spindle to spin up or spin down
   static inline void power_delay(const bool on) {
     #if DISABLED(LASER_POWER_INLINE)
@@ -212,7 +213,14 @@ public:
     static bool is_reverse() { return false; }
   #endif
 
+  static inline void disable() {
+    TERN_(HAS_LCD_MENU, menuPower = 0);
+    isReady = false;
+    set_enabled(false);
+  }
+
   #if HAS_LCD_MENU
+
     static inline void enable_with_dir(const bool reverse) {
       isReady = true;
       const uint8_t ocr = TERN(SPINDLE_LASER_PWM, upower_to_ocr(menuPower), 255);
@@ -251,8 +259,6 @@ public:
 
   #endif // HAS_LCD_MENU
 
- static inline void disable() { isReady = false; menuPower = 0; set_enabled(false); }
-
   #if ENABLED(LASER_POWER_INLINE)
     /**
      * Inline power adds extra fields to the planner block
@@ -261,7 +267,7 @@ public:
 
     // Force disengage planner power control
     static inline void inline_disable() {
-
+      //if (planner.laser_inline.status.isInline) set_ocr_power(0);
       planner.laser_inline.status.isInline = false;
       planner.laser_inline.status.alwaysOn = false;
       planner.laser_inline.status.isEnabled = true;
@@ -275,7 +281,7 @@ public:
 
     // Set the power for subsequent movement blocks
     static void inline_power(const cutter_power_t upwr) {
-       #if ENABLED(SPINDLE_LASER_PWM)
+      #if ENABLED(SPINDLE_LASER_PWM)
         #if ENABLED(SPEED_POWER_RELATIVE) && !CUTTER_UNIT_IS(RPM) // relative mode does not turn laser off at 0, except for RPM
           planner.laser_inline.status.isEnabled = true;
           inline_ocr_power(upower_to_ocr(upwr));
@@ -293,8 +299,8 @@ public:
     static inline void inline_direction(const bool) { /* never */ }
 
     static inline void inline_ocr_power(const uint8_t ocrpwr) {
-        planner.laser_inline.power = ocrpwr;
-      }
+      planner.laser_inline.power = ocrpwr;
+    }
 
   #endif  // LASER_POWER_INLINE
 
