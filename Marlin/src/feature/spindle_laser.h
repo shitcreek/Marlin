@@ -94,7 +94,7 @@ public:
   static const cutter_power_t mpower_min() { return cpwr_to_upwr(SPEED_POWER_MIN); }
   static const cutter_power_t mpower_max() { return cpwr_to_upwr(SPEED_POWER_MAX); }
 
-  TERN_(LASER_FEATURE, cutter_test_pulse_t testPulse);            // Test fire Pulse ms value
+  TERN_(LASER_FEATURE, static cutter_test_pulse_t testPulse);     // Test fire Pulse ms value
 
   static bool isReady;                                            // Ready to apply power setting from the UI to OCR
   static uint8_t power;
