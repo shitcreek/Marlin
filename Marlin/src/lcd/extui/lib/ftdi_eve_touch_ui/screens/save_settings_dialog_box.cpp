@@ -21,10 +21,9 @@
  ****************************************************************************/
 
 #include "../config.h"
-
-#if ENABLED(TOUCH_UI_FTDI_EVE)
-
 #include "screens.h"
+
+#ifdef FTDI_SAVE_SETTINGS_DIALOG_BOX
 
 using namespace ExtUI;
 
@@ -56,10 +55,9 @@ void SaveSettingsDialogBox::promptToSaveSettings() {
      // so SaveSettingsDialogBox doesn't return here.
      GOTO_SCREEN(SaveSettingsDialogBox);
      current_screen.forget();
-   } else {
-     // No save needed.
-     GOTO_PREVIOUS();
    }
+   else
+     GOTO_PREVIOUS(); // No save needed.
 }
 
-#endif // TOUCH_UI_FTDI_EVE
+#endif // FTDI_SAVE_SETTINGS_DIALOG_BOX
