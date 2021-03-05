@@ -137,6 +137,7 @@ public:
     static void set_ocr(const uint8_t ocr);
     static inline void set_ocr_power(const uint8_t ocr) { power = ocr; set_ocr(ocr);}
     static void ocr_off();
+
     // Used to update output for power->OCR translation
     static inline uint8_t upower_to_ocr(const cutter_power_t upwr) {
       return (
@@ -196,6 +197,17 @@ public:
 
   #endif // SPINDLE_LASER_PWM
 
+
+  static inline void set_enabled(const bool enable) {
+    set_power(enable ? (
+      #if ENABLED(SPINDLE_LASER_PWM)
+        power ?: (unitPower ? upower_to_ocr(cpwr_to_upwr(SPEED_POWER_STARTUP)) : 0)
+      #else
+        255
+      #endif
+    ) : 0);
+  }
+
   // Wait for spindle to spin up or spin down
   static inline void power_delay(const bool on) {
     #if DISABLED(LASER_POWER_INLINE)
@@ -215,7 +227,6 @@ public:
     TERN_(HAS_LCD_MENU, menuPower = 0);
     isReady = false;
     power = 0;
-    // set_enabled(false);
     ocr_off();
   }
 
@@ -284,8 +295,8 @@ public:
     static inline void inline_direction(const bool) { /* never */ }
 
     static inline void inline_ocr_power(const uint8_t ocrpwr) {
-        planner.laser_inline.power = ocrpwr;
-      }
+      planner.laser_inline.power = ocrpwr;
+    }
 
   #endif  // LASER_POWER_INLINE
 

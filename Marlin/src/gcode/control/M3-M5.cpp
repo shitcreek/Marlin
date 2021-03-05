@@ -85,6 +85,8 @@ void GcodeSuite::M3_M4(const bool is_M4) {
   #if ENABLED(LASER_POWER_INLINE)
     if (parser.seen('I') == DISABLED(LASER_POWER_INLINE_INVERT)) {
       // Laser power in inline mode
+      planner.laser_inline.status.isInline = true;
+      planner.laser_inline.status.alwaysOn = false;
       cutter.inline_direction(is_M4); // Should always be unused
       #if ENABLED(SPINDLE_LASER_PWM)
         if (parser.seen('O')) {
@@ -94,7 +96,8 @@ void GcodeSuite::M3_M4(const bool is_M4) {
         else
           cutter.inline_power(cutter.upower_to_ocr(get_s_power()));
       #else
-        cutter.unitpower = cutter.inline_power(255);
+        cutter.inline_power(255);
+        cutter.unitpower = 255;
       #endif
       return;
     }
@@ -126,7 +129,6 @@ void GcodeSuite::M3_M4(const bool is_M4) {
  */
 void GcodeSuite::M5() {
   cutter.kill();
-
   planner.synchronize();
 }
 
