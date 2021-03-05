@@ -117,7 +117,6 @@ enum BlockFlag : char {
 #if ENABLED(LASER_POWER_INLINE)
 
   typedef struct {
-    bool isInline:1;
     bool alwaysOn:1;
     bool isEnabled:1;
     bool dir:1;

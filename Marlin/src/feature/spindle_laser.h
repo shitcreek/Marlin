@@ -115,23 +115,27 @@ public:
 
   FORCE_INLINE static void refresh() { apply_power(power); }
   FORCE_INLINE static void set_power(const uint8_t upwr) { power = upwr; refresh(); }
-
+  
   static inline void set_enabled(const bool enable) {
-    set_power(enable ? TERN(SPINDLE_LASER_PWM, (power ?: upower_to_ocr(unitPower ?: cpwr_to_upwr(SPEED_POWER_STARTUP))), 255) : 0);
+    set_power(enable ? (
+      #if ENABLED(SPINDLE_LASER_PWM)
+        power ?: (unitPower ? upower_to_ocr(cpwr_to_upwr(SPEED_POWER_STARTUP)) : 0)
+      #else
+        255
+      #endif
+    ) : 0);
   }
-
-    // private:
-
-    // static void _set_ocr(const uint8_t ocr);
-
-    // public:
-
   #if ENABLED(SPINDLE_LASER_PWM)
+   
+    private:
+
+    static void _set_ocr(const uint8_t ocr);
+
+    public:
+
+
     static void set_ocr(const uint8_t ocr);
-    static inline void set_ocr_power(const uint8_t ocr) {
-      power = ocr;
-      set_ocr(ocr);
-      }
+    static inline void set_ocr_power(const uint8_t ocr) { power = ocr; set_ocr(ocr);}
     static void ocr_off();
     // Used to update output for power->OCR translation
     static inline uint8_t upower_to_ocr(const cutter_power_t upwr) {
@@ -207,6 +211,14 @@ public:
     static bool is_reverse() { return false; }
   #endif
 
+  static inline void disable() {
+    TERN_(HAS_LCD_MENU, menuPower = 0);
+    isReady = false;
+    power = 0;
+    // set_enabled(false);
+    ocr_off();
+  }
+
   #if HAS_LCD_MENU
     static inline void enable_with_dir(const bool reverse) {
       isReady = true;
@@ -246,35 +258,16 @@ public:
 
   #endif // HAS_LCD_MENU
 
- static inline void disable() { isReady = false; menuPower = 0; set_enabled(false); }
-
-//  static inline void disable() { isReady = false; power = 0; ocr_off();}
- static inline void disable() { isReady = false; menuPower = 0; set_enabled(false); }
-
   #if ENABLED(LASER_POWER_INLINE)
     /**
      * Inline power adds extra fields to the planner block
      * to handle laser power and scale to movement speed.
      */
 
-    // Force disengage planner power control
-    static inline void inline_disable() {
-      // if (planner.laser_inline.status.isInline) set_ocr_power(0);
-      planner.laser_inline.status.isInline = false;
-      planner.laser_inline.status.alwaysOn = false;
-      planner.laser_inline.status.isEnabled = true;
-      inline_ocr_power(0);
-    }
-
-    static inline void laser_disable() {
-      disable();
-      inline_disable();
-    }
-
     // Set the power for subsequent movement blocks
     static void inline_power(const cutter_power_t upwr) {
-       #if ENABLED(SPINDLE_LASER_PWM)
-        #if ENABLED(SPEED_POWER_RELATIVE) && !CUTTER_UNIT_IS(RPM) // relative mode does not turn laser off at 0, except for RPM
+      #if ENABLED(SPINDLE_LASER_PWM)
+        #if ENABLED(SPEED_POWER_RELATIVE) // relative mode does not turn laser off at 0
           planner.laser_inline.status.isEnabled = true;
           inline_ocr_power(upower_to_ocr(upwr));
         #else
@@ -297,7 +290,7 @@ public:
   #endif  // LASER_POWER_INLINE
 
   static inline void kill() {
-    TERN_(LASER_POWER_INLINE, inline_disable());
+    TERN_(LASER_POWER_INLINE, inline_ocr_power(0));
     disable();
   }
 };

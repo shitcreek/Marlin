@@ -48,9 +48,7 @@ TERN_(MARLIN_DEV_MODE, cutter_frequency_t SpindleLaser::frequency);   // PWM fre
 
 #define SPINDLE_LASER_PWM_OFF ((SPINDLE_LASER_PWM_INVERT) ? 255 : 0)
 
-//
 // Init the cutter to a safe OFF state
-//
 void SpindleLaser::init() {
   #if ENABLED(SPINDLE_SERVO)
     MOVE_SERVO(SPINDLE_SERVO_NR, SPINDLE_SERVO_MIN);
@@ -71,9 +69,7 @@ void SpindleLaser::init() {
 }
 
 #if ENABLED(SPINDLE_LASER_PWM)
-  /**
-   * Set the cutter PWM directly to the given ocr value
-   */
+  //  Set the cutter PWM directly to the given ocr value
   void SpindleLaser::_set_ocr(const uint8_t ocr) {
     #if NEEDS_HARDWARE_PWM && SPINDLE_LASER_FREQUENCY
       set_pwm_frequency(pin_t(SPINDLE_LASER_PWM_PIN), TERN(MARLIN_DEV_MODE, frequency, SPINDLE_LASER_FREQUENCY));
@@ -89,8 +85,6 @@ void SpindleLaser::init() {
   }
 
   void SpindleLaser::ocr_off() {
-    // WRITE(SPINDLE_LASER_ENA_PIN, !SPINDLE_LASER_ACTIVE_STATE); // Cutter OFF
-    // _set_ocr(0);
     WRITE(SPINDLE_LASER_ENA_PIN, !SPINDLE_LASER_ACTIVE_STATE);        // Turn spindle off
     analogWrite(pin_t(SPINDLE_LASER_PWM_PIN), SPINDLE_LASER_PWM_OFF); // Only write low byte
     #if NEEDS_HARDWARE_PWM && SPINDLE_LASER_FREQUENCY
@@ -99,28 +93,19 @@ void SpindleLaser::init() {
   }
 #endif
 
-//
 // Set cutter ON/OFF state (and PWM) to the given cutter power value
-//
 void SpindleLaser::apply_power(const uint8_t opwr) {
   static uint8_t last_power_applied = 0;
   if (opwr == last_power_applied) return;
-  last_power_applied = opwr;
-
-  power = opwr;
+  last_power_applied = power = opwr;
   #if ENABLED(SPINDLE_LASER_PWM)
-    if (power == 0 && CUTTER_UNIT_IS(RPM)) {
+    if (power == 0 && DISABLED(CUTTER_POWER_RELATIVE)) {
       ocr_off();
       isReady = false;
-    }
-    else if (ENABLED(CUTTER_POWER_RELATIVE) || enabled()) {
-    // else if (enabled(power) || ENABLED(CUTTER_POWER_RELATIVE)) {
-      set_ocr(power);
-      isReady = true;
     }
     else {
-      ocr_off();
-      isReady = false;
+      set_ocr(power);
+      isReady = true;
     }
   #elif ENABLED(SPINDLE_SERVO)
     MOVE_SERVO(SPINDLE_SERVO_NR, power);
@@ -131,10 +116,8 @@ void SpindleLaser::apply_power(const uint8_t opwr) {
 }
 
 #if ENABLED(SPINDLE_CHANGE_DIR)
-  //
   // Set the spindle direction and apply immediately
   // Stop on direction change if SPINDLE_STOP_ON_DIR_CHANGE is enabled
-  //
   void SpindleLaser::set_reverse(const bool reverse) {
     const bool dir_state = (reverse == SPINDLE_INVERT_DIR); // Forward (M3) HIGH when not inverted
     if (TERN0(SPINDLE_STOP_ON_DIR_CHANGE, enabled()) && READ(SPINDLE_DIR_PIN) != dir_state) disable();
