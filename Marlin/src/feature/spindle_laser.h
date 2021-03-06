@@ -124,9 +124,8 @@ public:
 
     public:
 
-
     static void set_ocr(const uint8_t ocr);
-    static inline void set_ocr_power(const uint8_t ocr) { power = ocr; set_ocr(ocr);}
+    static inline void set_ocr_power(const uint8_t ocr) { power = ocr; set_ocr(ocr); }
     static void ocr_off();
 
     // Used to update output for power->OCR translation
