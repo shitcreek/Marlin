@@ -2107,27 +2107,14 @@ uint32_t Stepper::block_phase_isr() {
       }
 
       #if ENABLED(LASER_POWER_INLINE)
-        power_status_t &laser_stat = current_block->laser.status;
         #if ENABLED(LASER_POWER_INLINE_TRAPEZOID)
-          laser_trap.enabled = laser_stat.isEnabled && laser_stat.alwaysOn;
-          laser_trap.cur_power = current_block->laser.power_entry; // RESET STATE
-          laser_trap.cruise_set = false;
-          #if DISABLED(LASER_POWER_INLINE_TRAPEZOID_CONT)
-            laser_trap.last_step_count = 0;
-            laser_trap.acc_step_count = current_block->laser.entry_per / 2;
-          #else
-            laser_trap.till_update = 0;
-          #endif
-          // Always have PWM in this case
-          cutter.set_ocr_power(laser_stat.isEnabled ? (laser_stat.alwaysOn ? laser_trap.cur_power : current_block->laser.power) : 0);  // ON with power or OFF
+          laser_trap.init_from_block(current_block);
+        #elif ENABLED(SPINDLE_LASER_PWM)
+            cutter.apply_power(current_block->laser.status.isEnabled ? current_block->laser.power : 0);  // ON with power or OFF
         #else
-          #if ENABLED(SPINDLE_LASER_PWM)
-            cutter.apply_power(laser_stat.isEnabled ? current_block->laser.power : 0);  // ON with power or OFF
-          #else
-            cutter.set_enabled(laser_stat.isEnabled);
-          #endif
+          cutter.set_enabled(current_block->laser.status.isEnabled);
         #endif
-      #endif // LASER_POWER_INLINE
+      #endif
 
       // At this point, we must ensure the movement about to execute isn't
       // trying to force the head against a limit switch. If using interrupt-
@@ -2162,18 +2149,20 @@ uint32_t Stepper::block_phase_isr() {
       interval = calc_timer_interval(current_block->initial_rate, &steps_per_isr);
     }
     else {
-      power_status_t &laser_stat = planner.laser_inline.status;
-      #if ENABLED(LASER_POWER_INLINE_CONTINUOUS)
-        // No new block found; so apply inline laser parameters
-        // This should mean ending file with 'M5 I' will stop the laser; thus the inline flag isn't needed
-        #if ENABLED(SPINDLE_LASER_PWM)
-          cutter.set_ocr_power(laser_stat.isEnabled ? planner.laser_inline.power : 0); // ON with power or OFF
+      #if ENABLED(LASER_POWER_INLINE)
+        #if ENABLED(LASER_POWER_INLINE_CONTINUOUS)
+          // No new block found; so apply inline laser parameters
+          // This should mean ending file with 'M5 I' will stop the laser; thus the inline flag isn't needed
+          const bool ena = planner.laser_inline.status.isEnabled;
+          #if ENABLED(SPINDLE_LASER_PWM)
+            cutter.set_ocr_power(ena ? planner.laser_inline.power : 0); // ON with power or OFF
+          #else
+            cutter.set_enabled(ena);
+          #endif
         #else
-          cutter.set_enabled(laser_stat.isEnabled);
+          planner.laser_inline.status.alwaysOn = true;
+          cutter.set_ocr_power(0);
         #endif
-      #else
-        laser_stat.alwaysOn = true;
-        cutter.set_ocr_power(0);
       #endif
     }
   }
