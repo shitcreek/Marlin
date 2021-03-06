@@ -115,18 +115,9 @@ public:
 
   FORCE_INLINE static void refresh() { apply_power(power); }
   FORCE_INLINE static void set_power(const uint8_t upwr) { power = upwr; refresh(); }
-  
-  static inline void set_enabled(const bool enable) {
-    set_power(enable ? (
-      #if ENABLED(SPINDLE_LASER_PWM)
-        power ?: (unitPower ? upower_to_ocr(cpwr_to_upwr(SPEED_POWER_STARTUP)) : 0)
-      #else
-        255
-      #endif
-    ) : 0);
-  }
+
   #if ENABLED(SPINDLE_LASER_PWM)
-   
+
     private:
 
     static void _set_ocr(const uint8_t ocr);
@@ -197,15 +188,14 @@ public:
 
   #endif // SPINDLE_LASER_PWM
 
-
   static inline void set_enabled(const bool enable) {
-    set_power(enable ? (
+    set_power(!enable ? 0 : (
       #if ENABLED(SPINDLE_LASER_PWM)
         power ?: (unitPower ? upower_to_ocr(cpwr_to_upwr(SPEED_POWER_STARTUP)) : 0)
       #else
         255
       #endif
-    ) : 0);
+    ));
   }
 
   // Wait for spindle to spin up or spin down
