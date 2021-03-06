@@ -47,21 +47,21 @@
  */
 
 /**
- *         __________________________
- *        /|                        |\     _________________         ^
+ *         2________________________3
+ *        /|                        |\     5_______________6         ^
  *       / |                        | \   /|               |\        |
  *      /  |                        |  \ / |               | \       s
- *     /   |                        |   |  |               |  \      p
+ *     /   |                        |   4  |               |  \      p
  *    /    |                        |   |  |               |   \     e
- *   +-----+------------------------+---+--+---------------+----+    e
+ *   1-----+------------------------+---+--+---------------+----7    e
  *   |               BLOCK 1            |      BLOCK 2          |    d
  *
  *                           time ----->
  *
- *  The trapezoid is the shape of the speed curve over time. It starts at block->initial_rate, accelerates
+ *  The speed curve over time is trapezoidal. It starts at block->initial_rate, accelerates
  *  first block->accelerate_until step_events_completed, then keeps going at constant speed until
- *  step_events_completed reaches block->decelerate_after after which it decelerates until the trapezoid generator is reset.
- *  The slope of acceleration is calculated using v = u + at where t is the accumulated timer values of the steps so far.
+ *  step_events_completed reaches block->decelerate_after, after which it decelerates until the trapezoid generator is reset.
+ *  The slope of acceleration is calculated by v = u + at where t is the accumulated timer values of the steps so far.
  */
 
 /**
@@ -1809,11 +1809,11 @@ uint32_t Stepper::block_phase_isr() {
       TERN_(HAS_FILAMENT_RUNOUT_DISTANCE, runout.block_completed(current_block));
       discard_current_block();
     }
-    else {
-      // Step events not completed yet...
+    else if (step_events_completed <= accelerate_until) { // Calculate new timer value
 
-      // Are we in acceleration phase ?
-      if (step_events_completed <= accelerate_until) { // Calculate new timer value
+        //
+        // Accelerating towards cruising speed
+        //
 
         #if ENABLED(S_CURVE_ACCELERATION)
           // Get the next speed to use (Jerk limited!)
@@ -1840,144 +1840,85 @@ uint32_t Stepper::block_phase_isr() {
         #endif
 
         // Update laser - Accelerating
-        #if ENABLED(LASER_POWER_INLINE_TRAPEZOID)
-          if (laser_trap.enabled && current_block->laser.status.alwaysOn) {
-            #if DISABLED(LASER_POWER_INLINE_TRAPEZOID_CONT)
-              if (current_block->laser.entry_per) {
-                laser_trap.acc_step_count -= step_events_completed - laser_trap.last_step_count;
-                laser_trap.last_step_count = step_events_completed;
+        TERN_(LASER_POWER_INLINE_TRAPEZOID, laser_trapezoid.accel());
+    }
+    else if (step_events_completed > decelerate_after) {
 
-                // Should be faster than a divide, since this should trip just once
-                if (laser_trap.acc_step_count < 0) {
-                  while (laser_trap.acc_step_count < 0) {
-                    laser_trap.acc_step_count += current_block->laser.entry_per;
-                    if (laser_trap.cur_power < current_block->laser.power) laser_trap.cur_power++;
-                  }
-                  cutter.set_ocr_power(laser_trap.cur_power);
-                }
-              }
-            #else
-              if (laser_trap.till_update)
-                laser_trap.till_update--;
-              else {
-                laser_trap.till_update = LASER_POWER_INLINE_TRAPEZOID_CONT_PER;
-                laser_trap.cur_power = (current_block->laser.power * acc_step_rate) / current_block->nominal_rate;
-                cutter.apply_power(laser_trap.cur_power); // Cycle efficiency is irrelevant in the last line
-              }
-            #endif
-          }
-        #endif
-      }
-      // Are we in Deceleration phase ?
-      else if (step_events_completed > decelerate_after) {
-        uint32_t step_rate;
+      //
+      // Decelerating towards zero or junction speed
+      //
 
-        #if ENABLED(S_CURVE_ACCELERATION)
-          // If this is the 1st time we process the 2nd half of the trapezoid...
-          if (!bezier_2nd_half) {
-            // Initialize the Bézier speed curve
-            _calc_bezier_curve_coeffs(current_block->cruise_rate, current_block->final_rate, current_block->deceleration_time_inverse);
-            bezier_2nd_half = true;
-            // The first point starts at cruise rate. Just save evaluation of the Bézier curve
-            step_rate = current_block->cruise_rate;
-          }
-          else {
-            // Calculate the next speed to use
-            step_rate = deceleration_time < current_block->deceleration_time
-              ? _eval_bezier_curve(deceleration_time)
-              : current_block->final_rate;
-          }
-        #else
+      uint32_t step_rate;
 
-          // Using the old trapezoidal control
-          step_rate = STEP_MULTIPLY(deceleration_time, current_block->acceleration_rate);
-          if (step_rate < acc_step_rate) { // Still decelerating?
-            step_rate = acc_step_rate - step_rate;
-            NOLESS(step_rate, current_block->final_rate);
-          }
-          else
-            step_rate = current_block->final_rate;
-        #endif
-
-        // step_rate is in steps/second
-
-        // step_rate to timer interval and steps per stepper isr
-        interval = calc_timer_interval(step_rate, &steps_per_isr);
-        deceleration_time += interval;
-
-        #if ENABLED(LIN_ADVANCE)
-          if (LA_use_advance_lead) {
-            // Wake up eISR on first deceleration loop and fire ISR if final adv_rate is reached
-            if (step_events_completed <= decelerate_after + steps_per_isr || (LA_steps && LA_isr_rate != current_block->advance_speed)) {
-              initiateLA();
-              LA_isr_rate = current_block->advance_speed;
-            }
-          }
-          else if (LA_steps) nextAdvanceISR = 0;
-        #endif // LIN_ADVANCE
-
-        // Update laser - Decelerating
-        #if ENABLED(LASER_POWER_INLINE_TRAPEZOID)
-          if (laser_trap.enabled && current_block->laser.status.alwaysOn) {
-            #if DISABLED(LASER_POWER_INLINE_TRAPEZOID_CONT)
-              if (current_block->laser.exit_per) {
-                laser_trap.acc_step_count -= step_events_completed - laser_trap.last_step_count;
-                laser_trap.last_step_count = step_events_completed;
-
-                // Should be faster than a divide, since this should trip just once
-                if (laser_trap.acc_step_count < 0) {
-                  while (laser_trap.acc_step_count < 0) {
-                    laser_trap.acc_step_count += current_block->laser.exit_per;
-                    if (laser_trap.cur_power > current_block->laser.power_exit) laser_trap.cur_power--;
-                  }
-                  cutter.set_ocr_power(laser_trap.cur_power);
-                }
-              }
-            #else
-              if (laser_trap.till_update)
-                laser_trap.till_update--;
-              else {
-                laser_trap.till_update = LASER_POWER_INLINE_TRAPEZOID_CONT_PER;
-                laser_trap.cur_power = (current_block->laser.power * step_rate) / current_block->nominal_rate;
-                cutter.apply_power(laser_trap.cur_power); // Cycle efficiency isn't relevant when the last line was many cycles
-              }
-            #endif
-          }
-        #endif
-      }
-      // Must be in cruise phase otherwise
-      else {
-
-        #if ENABLED(LIN_ADVANCE)
-          // If there are any esteps, fire the next advance_isr "now"
-          if (LA_steps && LA_isr_rate != current_block->advance_speed) initiateLA();
-        #endif
-
-        // Calculate the ticks_nominal for this nominal speed, if not done yet
-        if (ticks_nominal < 0) {
-          // step_rate to timer interval and loops for the nominal speed
-          ticks_nominal = calc_timer_interval(current_block->nominal_rate, &steps_per_isr);
+      #if ENABLED(S_CURVE_ACCELERATION)
+        // If this is the 1st time we process the 2nd half of the trapezoid...
+        if (!bezier_2nd_half) {
+          // Initialize the Bézier speed curve
+          _calc_bezier_curve_coeffs(current_block->cruise_rate, current_block->final_rate, current_block->deceleration_time_inverse);
+          bezier_2nd_half = true;
+          // The first point starts at cruise rate. Just save evaluation of the Bézier curve
+          step_rate = current_block->cruise_rate;
         }
+        else {
+          // Calculate the next speed to use
+          step_rate = deceleration_time < current_block->deceleration_time
+            ? _eval_bezier_curve(deceleration_time)
+            : current_block->final_rate;
+        }
+      #else
 
-        // The timer interval is just the nominal value for the nominal speed
-        interval = ticks_nominal;
+        // Using the old trapezoidal control
+        step_rate = STEP_MULTIPLY(deceleration_time, current_block->acceleration_rate);
+        if (step_rate < acc_step_rate) { // Still decelerating?
+          step_rate = acc_step_rate - step_rate;
+          NOLESS(step_rate, current_block->final_rate);
+        }
+        else
+          step_rate = current_block->final_rate;
+      #endif
 
-        // Update laser - Cruising
-        #if ENABLED(LASER_POWER_INLINE_TRAPEZOID)
-          if (laser_trap.enabled && current_block->laser.status.alwaysOn) {
-            if (!laser_trap.cruise_set) {
-              laser_trap.cur_power = current_block->laser.power;
-              cutter.set_ocr_power(laser_trap.cur_power);
-              laser_trap.cruise_set = true;
-            }
-            #if ENABLED(LASER_POWER_INLINE_TRAPEZOID_CONT)
-              laser_trap.till_update = LASER_POWER_INLINE_TRAPEZOID_CONT_PER;
-            #else
-              laser_trap.last_step_count = step_events_completed;
-            #endif
+      // step_rate is in steps/second
+
+      // step_rate to timer interval and steps per stepper isr
+      interval = calc_timer_interval(step_rate, &steps_per_isr);
+      deceleration_time += interval;
+
+      #if ENABLED(LIN_ADVANCE)
+        if (LA_use_advance_lead) {
+          // Wake up eISR on first deceleration loop and fire ISR if final adv_rate is reached
+          if (step_events_completed <= decelerate_after + steps_per_isr || (LA_steps && LA_isr_rate != current_block->advance_speed)) {
+            initiateLA();
+            LA_isr_rate = current_block->advance_speed;
           }
-        #endif
+        }
+        else if (LA_steps) nextAdvanceISR = 0;
+      #endif
+
+      // Update laser - Decelerating
+      TERN_(LASER_POWER_INLINE_TRAPEZOID, laser_trapezoid.decel());
+    }
+    else {
+
+      //
+      // Cruising at constant speed
+      //
+
+      #if ENABLED(LIN_ADVANCE)
+        // If there are any esteps, fire the next advance_isr "now"
+        if (LA_steps && LA_isr_rate != current_block->advance_speed) initiateLA();
+      #endif
+
+      // Calculate the ticks_nominal for this nominal speed, if not done yet
+      if (ticks_nominal < 0) {
+        // step_rate to timer interval and loops for the nominal speed
+        ticks_nominal = calc_timer_interval(current_block->nominal_rate, &steps_per_isr);
       }
+
+      // The timer interval is just the nominal value for the nominal speed
+      interval = ticks_nominal;
+
+      // Update laser - Cruising
+      TERN_(LASER_POWER_INLINE_TRAPEZOID, laser_trapezoid.cruise());
     }
   }
 
@@ -1999,9 +1940,8 @@ uint32_t Stepper::block_phase_isr() {
       // For non-inline cutter, grossly apply power
       #if ENABLED(LASER_FEATURE)
         #if ENABLED(LASER_POWER_INLINE)
-          if (current_block->laser.status.alwaysOn) {
+          if (current_block->laser.status.alwaysOn)
             cutter.set_ocr_power(current_block->cutter_power);
-          }
         #else
           cutter.apply_power(current_block->cutter_power);
         #endif
@@ -2167,9 +2107,9 @@ uint32_t Stepper::block_phase_isr() {
       }
 
       #if ENABLED(LASER_POWER_INLINE)
-        const power_status_t stat = current_block->laser.status;
+        power_status_t &laser_stat = current_block->laser.status;
         #if ENABLED(LASER_POWER_INLINE_TRAPEZOID)
-          laser_trap.enabled = stat.isEnabled && stat.alwaysOn;
+          laser_trap.enabled = laser_stat.isEnabled && laser_stat.alwaysOn;
           laser_trap.cur_power = current_block->laser.power_entry; // RESET STATE
           laser_trap.cruise_set = false;
           #if DISABLED(LASER_POWER_INLINE_TRAPEZOID_CONT)
@@ -2179,12 +2119,12 @@ uint32_t Stepper::block_phase_isr() {
             laser_trap.till_update = 0;
           #endif
           // Always have PWM in this case
-            cutter.set_ocr_power( (stat.isEnabled) ? (stat.alwaysOn ? laser_trap.cur_power : current_block->laser.power) : 0);  // ON with power or OFF
+          cutter.set_ocr_power(laser_stat.isEnabled ? (laser_stat.alwaysOn ? laser_trap.cur_power : current_block->laser.power) : 0);  // ON with power or OFF
         #else
           #if ENABLED(SPINDLE_LASER_PWM)
-            cutter.apply_power( stat.isEnabled ? current_block->laser.power : 0 );  // ON with power or OF
+            cutter.apply_power(laser_stat.isEnabled ? current_block->laser.power : 0);  // ON with power or OFF
           #else
-            cutter.set_enabled(stat.isEnabled);
+            cutter.set_enabled(laser_stat.isEnabled);
           #endif
         #endif
       #endif // LASER_POWER_INLINE
@@ -2222,19 +2162,17 @@ uint32_t Stepper::block_phase_isr() {
       interval = calc_timer_interval(current_block->initial_rate, &steps_per_isr);
     }
     else {
+      power_status_t &laser_stat = planner.laser_inline.status;
       #if ENABLED(LASER_POWER_INLINE_CONTINUOUS)
-      // No new block found; so apply inline laser parameters
-      // This should mean ending file with 'M5 I' will stop the laser; thus the inline flag isn't needed
-        const power_status_t stat = planner.laser_inline.status;
+        // No new block found; so apply inline laser parameters
+        // This should mean ending file with 'M5 I' will stop the laser; thus the inline flag isn't needed
         #if ENABLED(SPINDLE_LASER_PWM)
-          cutter.set_ocr_power(
-            stat.isEnabled ? planner.laser_inline.power : 0 // ON with power or OFF
-          );
+          cutter.set_ocr_power(laser_stat.isEnabled ? planner.laser_inline.power : 0); // ON with power or OFF
         #else
-          cutter.set_enabled(stat.isEnabled);
+          cutter.set_enabled(laser_stat.isEnabled);
         #endif
       #else
-        planner.laser_inline.status.alwaysOn = true;
+        laser_stat.alwaysOn = true;
         cutter.set_ocr_power(0);
       #endif
     }

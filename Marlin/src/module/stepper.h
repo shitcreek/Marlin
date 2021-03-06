@@ -366,12 +366,77 @@ class Stepper {
         uint8_t cur_power;  // Current laser power
         bool cruise_set;    // Power set up for cruising?
 
-        #if DISABLED(LASER_POWER_INLINE_TRAPEZOID_CONT)
+        #if ENABLED(LASER_POWER_INLINE_TRAPEZOID_CONT)
+          uint16_t till_update;     // Countdown to the next update
+        #else
           uint32_t last_step_count, // Step count from the last update
                    acc_step_count;  // Bresenham counter for laser accel/decel
-        #else
-          uint16_t till_update;     // Countdown to the next update
         #endif
+
+        void init_from_block(const block_t * const block) {
+          enabled = block->laser.status.isEnabled && block->laser.status.alwaysOn;
+          cur_power = block->laser.power_entry; // Recalibrate
+          cruise_set = false;
+          #if ENABLED(LASER_POWER_INLINE_TRAPEZOID_CONT)
+            till_update = 0;
+          #else
+            last_step_count = 0;
+            acc_step_count = block->laser.entry_per / 2;
+          #endif
+          cutter.set_ocr_power(block->laser.status.isEnabled ? (block->laser.status.alwaysOn ? cur_power : block->laser.power) : 0);  // ON with power or OFF
+        }
+
+        template<bool ACCEL> // Template for guaranteed optimization
+        void accel_decel() {
+          if (enabled && current_block->laser.status.alwaysOn) {
+            #if ENABLED(LASER_POWER_INLINE_TRAPEZOID_CONT)
+              if (!till_update) {
+                till_update = LASER_POWER_INLINE_TRAPEZOID_CONT_PER;
+                cur_power = (current_block->laser.power * (ACCEL ? acc_step_rate : step_rate)) / current_block->nominal_rate;
+                cutter.apply_power(cur_power); // Cycle efficiency is irrelevant in the last line
+              }
+              else
+                till_update--;
+            #else
+              const uint32_t add_per = ACCEL ? current_block->laser.entry_per : current_block->laser.exit_per;
+              if (add_per) {
+                acc_step_count -= step_events_completed - last_step_count;
+                last_step_count = step_events_completed;
+
+                // Should be faster than a divide, since this should trip just once
+                if (acc_step_count < 0) {
+                  while (acc_step_count < 0) {
+                    acc_step_count += add_per;
+                    if (ACCEL) {
+                      if (cur_power < current_block->laser.power) cur_power++;
+                    }
+                    else {
+                      if (cur_power > current_block->laser.power_exit) cur_power--;
+                    }
+                  }
+                  cutter.set_ocr_power(cur_power);
+                }
+              }
+            #endif
+          }
+        }
+        void accel() { accel_decel<true>(); }
+        void decel() { accel_decel<false>(); }
+
+        void cruise() {
+          if (enabled && current_block->laser.status.alwaysOn) {
+            if (!cruise_set) {
+              cruise_set = true;
+              cur_power = current_block->laser.power;
+              cutter.set_ocr_power(cur_power);
+            }
+            #if ENABLED(LASER_POWER_INLINE_TRAPEZOID_CONT)
+              till_update = LASER_POWER_INLINE_TRAPEZOID_CONT_PER;
+            #else
+              last_step_count = step_events_completed;
+            #endif
+          }
+        }
       } stepper_laser_t;
 
       static stepper_laser_t laser_trap;
