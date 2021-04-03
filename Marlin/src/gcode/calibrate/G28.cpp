@@ -209,7 +209,8 @@ void GcodeSuite::G28() {
   DEBUG_SECTION(log_G28, "G28", DEBUGGING(LEVELING));
   if (DEBUGGING(LEVELING)) log_machine_info();
 
-  TERN_(LASER_MOVE_G28_OFF, cutter.laser_disable());  // turn off laser
+  TERN_(LASER_POWER_INLINE, planner.synchronize());  // sync before killing power - prevents dwell
+  TERN_(LASER_MOVE_G28_OFF, cutter.kill());          // turn off laser
 
   #if ENABLED(DUAL_X_CARRIAGE)
     bool IDEX_saved_duplication_state = extruder_duplication_enabled;

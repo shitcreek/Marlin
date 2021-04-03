@@ -3107,6 +3107,9 @@
     //#define LASER_POWER_INLINE
 
     #if ENABLED(LASER_POWER_INLINE)
+
+      #define LASER_PULSE         100            // Slight delay for laser (M3 without I)
+
       /**
        * Scale the laser's power in proportion to the movement rate.
        *

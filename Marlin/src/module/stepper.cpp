@@ -240,7 +240,7 @@ xyze_long_t Stepper::count_position{0};
 xyze_int8_t Stepper::count_direction{0};
 
 #if ENABLED(LASER_POWER_INLINE_TRAPEZOID)
-  Stepper::stepper_laser_t Stepper::laser_trap = {
+  Stepper::stepper_laser_t Stepper::laser_trapezoid = {
     .enabled = false,
     .cur_power = 0,
     .cruise_set = false,
@@ -1939,10 +1939,7 @@ uint32_t Stepper::block_phase_isr() {
 
       // For non-inline cutter, grossly apply power
       #if ENABLED(LASER_FEATURE)
-        #if ENABLED(LASER_POWER_INLINE)
-          if (current_block->laser.status.alwaysOn)
-            cutter.set_ocr_power(current_block->cutter_power);
-        #else
+        #if DISABLED(LASER_POWER_INLINE)
           cutter.apply_power(current_block->cutter_power);
         #endif
       #endif
@@ -2108,7 +2105,7 @@ uint32_t Stepper::block_phase_isr() {
 
       #if ENABLED(LASER_POWER_INLINE)
         #if ENABLED(LASER_POWER_INLINE_TRAPEZOID)
-          laser_trap.init_from_block(current_block);
+          laser_trapezoid.init_from_block(current_block);
         #elif ENABLED(SPINDLE_LASER_PWM)
             cutter.apply_power(current_block->laser.status.isEnabled ? current_block->laser.power : 0);  // ON with power or OFF
         #else
@@ -2150,18 +2147,16 @@ uint32_t Stepper::block_phase_isr() {
     }
     else {
       #if ENABLED(LASER_POWER_INLINE)
+        const bool ena = planner.laser_inline.status.isEnabled;
         #if ENABLED(LASER_POWER_INLINE_CONTINUOUS)
           // No new block found; so apply inline laser parameters
-          // This should mean ending file with 'M5 I' will stop the laser; thus the inline flag isn't needed
-          const bool ena = planner.laser_inline.status.isEnabled;
           #if ENABLED(SPINDLE_LASER_PWM)
             cutter.set_ocr_power(ena ? planner.laser_inline.power : 0); // ON with power or OFF
           #else
             cutter.set_enabled(ena);
           #endif
         #else
-          planner.laser_inline.status.alwaysOn = true;
-          cutter.set_ocr_power(0);
+          cutter.set_ocr_power((ena && planner.laser_inline.status.isInline) ? 0 : planner.laser_inline.power);
         #endif
       #endif
     }

@@ -213,6 +213,8 @@ public:
   #endif
 
   static inline void disable() {
+    TERN_(LASER_POWER_INLINE, planner.laser_inline.status.isInline = false);
+    TERN_(LASER_POWER_INLINE, planner.laser_inline.power = 0);
     TERN_(HAS_LCD_MENU, menuPower = 0);
     isReady = false;
     power = 0;
@@ -269,11 +271,10 @@ public:
       #if ENABLED(SPINDLE_LASER_PWM)
         #if ENABLED(SPEED_POWER_RELATIVE) // relative mode does not turn laser off at 0
           planner.laser_inline.status.isEnabled = true;
-          inline_ocr_power(upower_to_ocr(upwr));
         #else
           planner.laser_inline.status.isEnabled = enabled(upwr);
-          inline_ocr_power(upower_to_ocr(upwr));
         #endif
+        inline_ocr_power(upower_to_ocr(upwr));
       #else
         upwr = upwr > 0 ? 255 : 0;
         planner.laser_inline.status.isEnabled = enabled(upwr);
